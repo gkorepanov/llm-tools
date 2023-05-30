@@ -1,3 +1,4 @@
 iso639-lang
 openai
 tenacity
+git+https://github.com/FlowerWrong/langchain.git@support-multi-openai-api-keys

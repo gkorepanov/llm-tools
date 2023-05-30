@@ -5,7 +5,9 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
     AsyncRetrying,
+    retry_if_exception,
 )
+from tenacity.wait import wait_base
 from typing import Any, Callable, Tuple
 import logging
 import openai
@@ -17,32 +19,53 @@ import aiohttp.client_exceptions
 logger = logging.getLogger(__name__)
 
 
-OPENAI_REQUEST_ERRORS = (
-    openai.error.Timeout,
-    openai.error.APIError,
-    openai.error.APIConnectionError,
-    openai.error.RateLimitError,
-    openai.error.ServiceUnavailableError,
-)
 
-OPENAI_STREAMING_ERRORS = (
-    aiohttp.client_exceptions.ClientPayloadError,
-)
+class ModelContextSizeExceededError(Exception):
+    pass
+
+class StreamingNextTokenTimeoutError(Exception):
+    pass
+
+CONTEXT_LENGTH_EXCEEDED_ERROR_CODE = "context_length_exceeded"
+
+
+def should_retry_initital_openai_request_error(error: Exception) -> bool:
+    OPENAI_REQUEST_ERRORS = (
+        openai.error.Timeout,
+        openai.error.APIError,
+        openai.error.APIConnectionError,
+        openai.error.RateLimitError,
+        openai.error.ServiceUnavailableError,
+    )
+    return isinstance(error, OPENAI_REQUEST_ERRORS)
+
+
+def should_retry_streaming_openai_request_error(error: Exception) -> bool:
+    OPENAI_STREAMING_ERRORS = (
+        aiohttp.client_exceptions.ClientPayloadError,
+    )
+    return isinstance(error, OPENAI_STREAMING_ERRORS)
+
+
+def should_fallback_to_other_model(error: Exception) -> bool:
+    if isinstance(error, ModelContextSizeExceededError):
+        return False
+    
+    if isinstance(error, openai.error.InvalidRequestError) and error.code == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
+        return False
+    
+    return True
 
 
 def get_openai_retrying_iterator(
-    errors: Tuple[Exception, ...],
-    max_retries: int = 5,
-    min_seconds: int = 1,
-    max_seconds: int = 60,
+    retry_if_exception_fn: Callable[[Exception], bool],
+    wait: wait_base,
+    max_retries: int = 1,
 ) -> AsyncRetrying:
     return AsyncRetrying(
         reraise=True,
         stop=stop_after_attempt(max_retries),
-        wait=wait_exponential(multiplier=1, min=min_seconds, max=max_seconds),
-        retry=retry_if_exception_type(OPENAI_REQUEST_ERRORS),
+        wait=wait,
+        retry=retry_if_exception(retry_if_exception_fn),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-
-OPENAI_REQUEST_RETRING_ITERATOR_FN = lambda: get_openai_retrying_iterator(OPENAI_REQUEST_ERRORS)
-OPENAI_STREAMING_RETRING_ITERATOR_FN = lambda: get_openai_retrying_iterator(OPENAI_STREAMING_ERRORS)
