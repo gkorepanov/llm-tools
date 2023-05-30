@@ -33,6 +33,7 @@ from llm_tools.errors import (
     get_openai_retrying_iterator,
     ModelContextSizeExceededError,
     StreamingNextTokenTimeoutError,
+    OpenAIRequestTimeoutError,
 )
 
 
@@ -122,6 +123,8 @@ class StreamingOpenAIChatModel:
                             self.chat_model.client.acreate(messages=self.message_dicts, **params),
                             timeout=timeout,
                         )
+                    except asyncio.TimeoutError as e:
+                        raise OpenAIRequestTimeoutError() from e
                     except:
                         raise
                     else:
@@ -138,8 +141,8 @@ class StreamingOpenAIChatModel:
                             )
                         except StopAsyncIteration:
                             break
-                        except asyncio.TimeoutError:
-                            raise StreamingNextTokenTimeoutError()
+                        except asyncio.TimeoutError as e:
+                            raise StreamingNextTokenTimeoutError() from e
                         finish_reason = stream_resp["choices"][0].get("finish_reason")
                         role = stream_resp["choices"][0]["delta"].get("role", role)
                         token = stream_resp["choices"][0]["delta"].get("content", "")

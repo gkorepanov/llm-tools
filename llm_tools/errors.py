@@ -14,6 +14,7 @@ import openai
 import openai.error
 import aiohttp
 import aiohttp.client_exceptions
+import asyncio
 
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,14 @@ logger = logging.getLogger(__name__)
 class ModelContextSizeExceededError(Exception):
     pass
 
-class StreamingNextTokenTimeoutError(Exception):
+
+class StreamingNextTokenTimeoutError(asyncio.TimeoutError):
     pass
+
+
+class OpenAIRequestTimeoutError(asyncio.TimeoutError):
+    pass
+
 
 CONTEXT_LENGTH_EXCEEDED_ERROR_CODE = "context_length_exceeded"
 
@@ -36,6 +43,7 @@ def should_retry_initital_openai_request_error(error: Exception) -> bool:
         openai.error.APIConnectionError,
         openai.error.RateLimitError,
         openai.error.ServiceUnavailableError,
+        OpenAIRequestTimeoutError,
     )
     return isinstance(error, OPENAI_REQUEST_ERRORS)
 
@@ -43,6 +51,7 @@ def should_retry_initital_openai_request_error(error: Exception) -> bool:
 def should_retry_streaming_openai_request_error(error: Exception) -> bool:
     OPENAI_STREAMING_ERRORS = (
         aiohttp.client_exceptions.ClientPayloadError,
+        StreamingNextTokenTimeoutError,
     )
     return isinstance(error, OPENAI_STREAMING_ERRORS)
 
