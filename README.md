@@ -2,5 +2,5 @@
 Some random tools for working with LLMs.
 
 # included
-- method for creating async generator
-- method for translating UI interface texts to multiple languages
+- production-ready async text streaming wrapper around langchain LLMs
+- translating UI interface texts to multiple languages
