@@ -5,7 +5,7 @@ from typing import (
     Tuple,
 )
 
-from llm_tools.tokens import TokenExpense
+from llm_tools.tokens import TokenExpenses
 from llm_tools.chat_message import OpenAIChatMessage
 
 
@@ -24,5 +24,5 @@ class StreamingLLMBase(object):
     def get_tokens_spent(
         self,
         only_successful_trial: bool = False,
-    ) -> List[TokenExpense]:
+    ) -> TokenExpenses:
         raise NotImplementedError()

@@ -23,6 +23,7 @@ import openai.error
 from llm_tools.chat_message import OpenAIChatMessage, prepare_messages
 from llm_tools.tokens import (
     TokenExpense,
+    TokenExpenses,
     count_tokens_from_input_messages,
     count_tokens_from_output_text,
 )
@@ -201,7 +202,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
     def get_tokens_spent(
         self,
         only_successful_trial: bool = False,
-    ) -> List[TokenExpense]:
+    ) -> TokenExpenses:
         if not self.succeeded and only_successful_trial:
             raise ValueError("Cannot get tokens spent for unsuccessful trial")
 
@@ -212,10 +213,11 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         else:
             n_input_tokens = n_input_tokens_per_trial * self.successful_request_attempts
             n_output_tokens = sum(self.output_tokens_spent_per_completion)
-        return [
-            TokenExpense(
-                n_input_tokens=n_input_tokens,
-                n_output_tokens=n_output_tokens,
-                model_name=self.chat_model.model_name,
-            )
-        ]
+        expenses = TokenExpenses()
+        expense = TokenExpense(
+            n_input_tokens=n_input_tokens,
+            n_output_tokens=n_output_tokens,
+            model_name=self.chat_model.model_name,
+        )
+        expenses.add_expense(expense)
+        return expenses

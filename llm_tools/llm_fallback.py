@@ -10,6 +10,7 @@ from typing import (
 
 from llm_tools.tokens import (
     TokenExpense,
+    TokenExpenses,
 )
 from llm_tools.chat_message import OpenAIChatMessage
 
@@ -64,7 +65,7 @@ class StreamingModelWithFallback(StreamingLLMBase):
     def get_tokens_spent(
         self,
         only_successful_trial: bool = False,
-    ) -> List[TokenExpense]:
+    ) -> TokenExpenses:
         
         if not self.succeeded and only_successful_trial:
             raise ValueError("Cannot get tokens spent for unsuccessful trial")
@@ -73,7 +74,10 @@ class StreamingModelWithFallback(StreamingLLMBase):
             first_successful_model = next(model for model in self.models if model._succeeded)
             return first_successful_model.get_tokens_spent(only_successful_trial)
         else:
-            return sum((
-                model.get_tokens_spent(only_successful_trial)
-                for model in self.models
-            ), [])
+            return sum(
+                (
+                    model.get_tokens_spent(only_successful_trial)
+                    for model in self.models
+                ),
+                TokenExpenses()
+            )

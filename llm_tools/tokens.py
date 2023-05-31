@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 from tiktoken import encoding_for_model
 from llm_tools.chat_message import OpenAIChatMessage, prepare_messages
@@ -23,6 +23,55 @@ class TokenExpense:
             n_input_tokens=self.n_input_tokens + other.n_input_tokens,
             n_output_tokens=self.n_output_tokens + other.n_output_tokens,
         )
+    
+    def price_per_1e6_input_tokens(self) -> int:
+        return {
+            "gpt-3.5-turbo": 2,
+            "gpt-4": 30,
+        }[self.model_name]
+    
+    def price_per_1e6_output_tokens(self) -> int:
+        return {
+            "gpt-3.5-turbo": 2,
+            "gpt-4": 60,
+        }[self.model_name]
+    
+    def get_price_multiplied_by_1e6(self) -> int:
+        return (
+            self.price_per_1e6_input_tokens() * self.n_input_tokens
+            + self.price_per_1e6_output_tokens() * self.n_output_tokens
+        )
+    
+    def get_price(self) -> float:
+        return self.get_price_multiplied_by_1e6() / 1e6
+
+
+@dataclass
+class TokenExpenses:
+    expenses: Dict[str, TokenExpense]
+
+    def __init__(self):
+        self.expenses = {}
+    
+    def add_expense(self, expense: TokenExpense):
+        if expense.model_name in self.expenses:
+            self.expenses[expense.model_name] += expense
+        else:
+            self.expenses[expense.model_name] = expense
+
+    def __add__(self, other: "TokenExpenses") -> "TokenExpenses":
+        result = TokenExpenses()
+        for expense in self.expenses.values():
+            result.add_expense(expense)
+        for expense in other.expenses.values():
+            result.add_expense(expense)
+        return result
+    
+    def get_price_multiplied_by_1e6(self) -> int:
+        return sum(expense.get_price_multiplied_by_1e6() for expense in self.expenses.values())
+    
+    def get_price(self) -> float:
+        return self.get_price_multiplied_by_1e6() / 1e6
 
 
 def count_tokens_from_input_messages(
