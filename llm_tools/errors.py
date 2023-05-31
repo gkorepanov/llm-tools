@@ -8,13 +8,14 @@ from tenacity import (
     retry_if_exception,
 )
 from tenacity.wait import wait_base
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, Optional
 import logging
 import openai
 import openai.error
 import aiohttp
 import aiohttp.client_exceptions
 import asyncio
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,51 @@ logger = logging.getLogger(__name__)
 
 
 class ModelContextSizeExceededError(Exception):
-    pass
+    def __init__(
+        self,
+        model_name: str,
+        max_context_length: int,
+        context_length: Optional[int] = None,
+        during_streaming: bool = False,
+    ):
+        self.model_name = model_name
+        self.max_context_length = max_context_length
+        self.context_length = context_length
+        self.during_streaming = during_streaming
+    
+    def __str__(self) -> str:
+        suffix = " (during streaming)" if self.during_streaming else ""
+        if self.context_length is None:
+            return f"Context length exceeded for model {self.model_name}{suffix}"
+        else:
+            return f"Context length exceeded for model {self.model_name}{suffix}: {self.context_length} > {self.max_context_length}"
+        
+    @classmethod
+    def from_openai_error(
+        cls,
+        error: openai.error.InvalidRequestError,
+        model_name: str,
+        during_streaming: bool = False,
+    ) -> "ModelContextSizeExceededError":
+        assert error.code == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE
+        max_context_length_pattern = r"maximum context length is (\d+) tokens"
+        tokens_number_pattern = r"messages resulted in (\d+) tokens"
+    
+        max_context_length = re.search(max_context_length_pattern, str(error))
+        tokens_number = re.search(tokens_number_pattern, str(error))
+
+        if max_context_length is not None:
+            max_context_length = int(max_context_length.group(1))
+        
+        if tokens_number is not None:
+            tokens_number = int(tokens_number.group(1))
+
+        return ModelContextSizeExceededError(
+            model_name=model_name,
+            max_context_length=max_context_length,
+            context_length=tokens_number,
+            during_streaming=during_streaming,
+        )
 
 
 class StreamingNextTokenTimeoutError(asyncio.TimeoutError):
