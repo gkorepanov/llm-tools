@@ -8,7 +8,7 @@ from tenacity import (
     retry_if_exception,
 )
 from tenacity.wait import wait_base
-from typing import Any, Callable, Tuple, Optional
+from typing import Any, Callable, Tuple, Optional, List
 import logging
 import openai
 import openai.error
@@ -76,6 +76,20 @@ class StreamingNextTokenTimeoutError(asyncio.TimeoutError):
 
 class OpenAIRequestTimeoutError(asyncio.TimeoutError):
     pass
+
+
+class MultipleException(Exception):
+    def __init__(
+        self,
+        exceptions: List[Exception],
+    ):
+        self.exceptions = exceptions
+    
+    def __str__(self):
+        return "\n".join(
+            f"{type(e).__name__}: {str(e)}"
+            for e in self.exceptions
+        )
 
 
 CONTEXT_LENGTH_EXCEEDED_ERROR_CODE = "context_length_exceeded"

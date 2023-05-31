@@ -20,6 +20,7 @@ setup(
         "openai",
         "iso639-lang",
         "tenacity",
+        "funcy",
         "langchain @ git+https://github.com/FlowerWrong/langchain.git@support-multi-openai-api-keys",
     ],
 )
