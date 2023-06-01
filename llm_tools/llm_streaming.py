@@ -187,13 +187,16 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                         completion += token
                         if token:
                             yield completion, token
-                        if finish_reason and finish_reason != "stop":
-                            raise ModelContextSizeExceededError(
-                                model_name=self.chat_model.model_name,
-                                max_context_length=self.context_size,
-                                context_length=self.input_messages_n_tokens + self.output_tokens_spent_per_completion[-1],
-                                during_streaming=True,
-                            )
+                        if finish_reason:
+                            if finish_reason == "length":
+                                raise ModelContextSizeExceededError(
+                                    model_name=self.chat_model.model_name,
+                                    max_context_length=self.context_size,
+                                    context_length=self.input_messages_n_tokens + self.output_tokens_spent_per_completion[-1],
+                                    during_streaming=True,
+                                )
+                            elif finish_reason != "stop":
+                                raise ValueError(f"Unknown finish reason: {finish_reason}")
                 finally:
                     self.completions.append(completion)
 
