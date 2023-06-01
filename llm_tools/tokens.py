@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from typing import List, Dict
 
 from tiktoken import encoding_for_model
-from llm_tools.chat_message import OpenAIChatMessage, prepare_messages
+from llm_tools.chat_message import (
+    OpenAIChatMessage,
+    prepare_messages,
+    convert_message_to_dict,
+)
 
 
 @dataclass
@@ -82,6 +86,7 @@ def count_tokens_from_input_messages(
         return 0
     encoding = encoding_for_model(model_name)
     messages_typed = prepare_messages(messages)
+    message_dicts = [convert_message_to_dict(x) for x in messages_typed]
 
     if model_name == "gpt-3.5-turbo":
         tokens_per_message = 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
@@ -93,11 +98,11 @@ def count_tokens_from_input_messages(
         raise ValueError(f"Unknown model: {model_name}")
 
     n_input_tokens = 0
-    for message in messages_typed:
+    for message_dict in message_dicts:
         n_input_tokens += tokens_per_message
-        for message in messages_typed:
-            n_input_tokens += len(encoding.encode(message.content))
-            if "name" in message.additional_kwargs:
+        for key, value in message_dict.items():
+            n_input_tokens += len(encoding.encode(value))
+            if key == "name":
                 n_input_tokens += tokens_per_name
 
     n_input_tokens += 3
