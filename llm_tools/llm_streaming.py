@@ -74,6 +74,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         else:
             return {
                 "gpt-3.5-turbo": 4097,
+                "gpt-3.5-turbo-16k": 16384,
                 "gpt-4": 8192,
             }[model_name]
 
