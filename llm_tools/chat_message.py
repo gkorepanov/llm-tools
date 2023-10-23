@@ -37,7 +37,7 @@ def convert_dict_to_message(_dict: Dict[str, str]) -> BaseMessage:
         return SystemMessage(content=_dict["content"], additional_kwargs=additional_kwargs)
     else:
         return ChatMessage(content=_dict["content"], role=role, additional_kwargs=additional_kwargs)
-    
+
 
 def prepare_message(message: OpenAIChatMessage) -> BaseMessage:
     if isinstance(message, dict):

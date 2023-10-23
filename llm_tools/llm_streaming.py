@@ -20,6 +20,9 @@ import tiktoken
 import openai
 import openai.error
 
+from concurrent.futures import Executor
+from functools import partial
+
 from llm_tools.chat_message import OpenAIChatMessage, prepare_messages
 from llm_tools.tokens import (
     TokenExpense,
@@ -52,6 +55,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         wait_between_retries=wait_exponential(multiplier=1, min=1, max=60),
         streaming_next_token_timeout: int = 10,
         request_timeout: wait_base = wait_exponential(multiplier=1, min=5, max=60),
+        token_count_executor: Optional[Executor] = None,
     ):
         self.chat_model = chat_model
         self.encoding = tiktoken.encoding_for_model(self.chat_model.model_name)
@@ -60,6 +64,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         self.wait_between_retries = wait_between_retries
         self.streaming_next_token_timeout = streaming_next_token_timeout
         self.request_timeout = request_timeout
+        self.token_count_executor = token_count_executor
         self.reset()
 
     @property
@@ -108,17 +113,24 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         assert self.chat_model.streaming
         assert len(messages) > 0
         self.reset()
-        self.input_messages_n_tokens = count_tokens_from_input_messages(
+        _f = partial(count_tokens_from_input_messages,
             messages=messages,
             model_name=self.chat_model.model_name,
         )
+        if self.token_count_executor is None:
+            self.input_messages_n_tokens = _f()
+        else:
+            self.input_messages_n_tokens = await asyncio.get_running_loop().run_in_executor(
+                self.token_count_executor,
+                _f,
+            )
         if self.input_messages_n_tokens > self.context_size:
             raise ModelContextSizeExceededError(
                 model_name=self.chat_model.model_name,
                 max_context_length=self.context_size,
                 context_length=self.input_messages_n_tokens,
                 during_streaming=False,
-            )    
+            )
 
         self.message_dicts, params = self.chat_model._create_message_dicts(
             messages=prepare_messages(messages),
@@ -181,10 +193,19 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                         finish_reason = stream_resp["choices"][0].get("finish_reason")
                         role = stream_resp["choices"][0]["delta"].get("role", role)
                         token = stream_resp["choices"][0]["delta"].get("content", "")
-                        self.output_tokens_spent_per_completion[-1] += count_tokens_from_output_text(
+
+                        _f = partial(count_tokens_from_output_text,
                             text=token,
                             model_name=self.chat_model.model_name,
                         )
+                        if self.token_count_executor is None:
+                            _tokens = _f()
+                        else:
+                            _tokens = await asyncio.get_running_loop().run_in_executor(
+                                self.token_count_executor,
+                                _f,
+                            )
+                        self.output_tokens_spent_per_completion[-1] += _tokens
                         completion += token
                         if token:
                             yield completion, token
@@ -202,7 +223,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     self.completions.append(completion)
 
         self._succeeded = True
-    
+
     def get_tokens_spent(
         self,
         only_successful_trial: bool = False,
