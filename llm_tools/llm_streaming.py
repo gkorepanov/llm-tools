@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import BaseMessage
-from langchain.chat_models.openai import _convert_dict_to_message
 import tiktoken
 import openai
 import openai.error
@@ -97,14 +96,6 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
     @property
     def succeeded(self) -> bool:
         return self._succeeded
-
-    def prepare_messages(self, messages: List[OpenAIChatMessage]) -> List[BaseMessage]:
-        result = []
-        for message in messages:
-            if not isinstance(message, BaseMessage):
-                message = _convert_dict_to_message(message)
-            result.append(message)
-        return result
 
     async def stream_llm_reply(
         self,
