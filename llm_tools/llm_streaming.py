@@ -149,7 +149,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     timeout = self.request_timeout(request_attempt.retry_state)
                     try:
                         gen = await asyncio.wait_for(
-                            self.chat_model.client.acreate(messages=self.message_dicts, **params),
+                            self.chat_model.async_client.create(messages=self.message_dicts, **params),
                             timeout=timeout,
                         )
                     except openai.BadRequestError as e:
@@ -181,9 +181,17 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                             break
                         except asyncio.TimeoutError as e:
                             raise StreamingNextTokenTimeoutError() from e
-                        finish_reason = stream_resp["choices"][0].get("finish_reason")
-                        role = stream_resp["choices"][0]["delta"].get("role", role)
-                        token = stream_resp["choices"][0]["delta"].get("content", "")
+
+                        choices = stream_resp.choices
+                        if len(choices) == 0:
+                            finish_reason = None
+                            role = role
+                            token = ""
+                        else:
+                            choice = choices[0]
+                            finish_reason = choice.finish_reason
+                            role = choice.delta.role or role
+                            token = choice.delta.content or ""
 
                         _f = partial(count_tokens_from_output_text,
                             text=token,
