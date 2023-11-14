@@ -17,7 +17,6 @@ from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import BaseMessage
 import tiktoken
 import openai
-import openai.error
 
 from concurrent.futures import Executor
 from functools import partial
@@ -150,11 +149,11 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     timeout = self.request_timeout(request_attempt.retry_state)
                     try:
                         gen = await asyncio.wait_for(
-                            self.chat_model.client.acreate(messages=self.message_dicts, **params),
+                            self.chat_model.async_client.create(messages=self.message_dicts, **params),
                             timeout=timeout,
                         )
-                    except openai.error.InvalidRequestError as e:
-                        if e.code == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
+                    except openai.BadRequestError as e:
+                        if e.response.json()["error"]["code"] == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
                             raise ModelContextSizeExceededError.from_openai_error(
                                 model_name=self.chat_model.model_name,
                                 during_streaming=False,
@@ -182,9 +181,17 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                             break
                         except asyncio.TimeoutError as e:
                             raise StreamingNextTokenTimeoutError() from e
-                        finish_reason = stream_resp["choices"][0].get("finish_reason")
-                        role = stream_resp["choices"][0]["delta"].get("role", role)
-                        token = stream_resp["choices"][0]["delta"].get("content", "")
+
+                        choices = stream_resp.choices
+                        if len(choices) == 0:
+                            finish_reason = None
+                            role = role
+                            token = ""
+                        else:
+                            choice = choices[0]
+                            finish_reason = choice.finish_reason
+                            role = choice.delta.role or role
+                            token = choice.delta.content or ""
 
                         _f = partial(count_tokens_from_output_text,
                             text=token,

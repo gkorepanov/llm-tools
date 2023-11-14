@@ -8,6 +8,8 @@ async def make_generator(
     stream: bool = True,
     **kwargs
 ) -> AsyncIterator[str]:
+    # (!) This code doesn't work with openai >= 1.0.0
+
     kwargs['temperature'] = kwargs.get('temperature', 0)
     kwargs['model'] = kwargs.get('model', "gpt-3.5-turbo")
     if stream:
