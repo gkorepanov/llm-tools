@@ -4,6 +4,8 @@ import pathlib
 here = pathlib.Path(__file__).parent.resolve()
 
 long_description = (here / "README.md").read_text(encoding="utf-8")
+requirements = (here / "requirements.txt").read_text(encoding="utf-8").splitlines()
+
 
 setup(
     name="llm-tools",
@@ -16,11 +18,5 @@ setup(
     author_email="gkorepanov.gk@gmail.com",
     packages=find_packages(),
     python_requires=">=3.7",
-    install_requires=[
-        "openai",
-        "iso639-lang",
-        "tenacity",
-        "funcy",
-        "langchain @ git+https://github.com/FlowerWrong/langchain.git@support-multi-openai-api-keys",
-    ],
+    install_requires=requirements,
 )
