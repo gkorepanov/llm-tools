@@ -17,7 +17,6 @@ from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import BaseMessage
 import tiktoken
 import openai
-import openai.error
 
 from concurrent.futures import Executor
 from functools import partial
@@ -153,8 +152,8 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                             self.chat_model.client.acreate(messages=self.message_dicts, **params),
                             timeout=timeout,
                         )
-                    except openai.error.InvalidRequestError as e:
-                        if e.code == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
+                    except openai.BadRequestError as e:
+                        if e.response.json()["error"]["code"] == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
                             raise ModelContextSizeExceededError.from_openai_error(
                                 model_name=self.chat_model.model_name,
                                 during_streaming=False,
