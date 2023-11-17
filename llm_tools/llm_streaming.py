@@ -12,6 +12,7 @@ from tenacity import wait_exponential
 import asyncio
 from tenacity.wait import wait_base
 from dataclasses import dataclass
+import logging
 
 from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import BaseMessage
@@ -42,6 +43,8 @@ from llm_tools.errors import (
 )
 from llm_tools.llm_streaming_base import StreamingLLMBase
 
+
+logger = logging.getLogger(__name__)
 
 
 class StreamingOpenAIChatModel(StreamingLLMBase):
@@ -147,9 +150,18 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                 with request_attempt:
                     self.request_attempts += 1
                     timeout = self.request_timeout(request_attempt.retry_state)
+
+                    def _f(message_dicts, params, request_attempt):
+                        logger.error(f"✅ n_messages_dicts={len(message_dicts)}, request_attempt={request_attempt}, params={params}")
+                        return self.chat_model.async_client.create(messages=message_dicts, **params)
+
                     try:
+                        # gen = await asyncio.wait_for(
+                        #     self.chat_model.async_client.create(messages=self.message_dicts, **params),
+                        #     timeout=timeout,
+                        # )
                         gen = await asyncio.wait_for(
-                            self.chat_model.async_client.create(messages=self.message_dicts, **params),
+                            _f(self.message_dicts, params, self.request_attempts),
                             timeout=timeout,
                         )
                     except openai.BadRequestError as e:
