@@ -81,6 +81,8 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                 "gpt-3.5-turbo": 4097,
                 "gpt-3.5-turbo-16k": 16384,
                 "gpt-4": 8192,
+                "gpt-4-1106-preview": 128000,
+                "gpt-3.5-turbo-1106": 16385,
             }[model_name]
 
     def reset(self):
