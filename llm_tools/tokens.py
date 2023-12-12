@@ -36,12 +36,18 @@ class TokenExpense:
         return {
             "gpt-3.5-turbo": 2,
             "gpt-4": 30,
+            "gpt-4-1106-preview": 10,
+            "gpt-4-1106-vision-preview": 10,
+            "gpt-3.5-turbo-1106": 1,
         }[self.model_name]
 
     def price_per_1e6_output_tokens(self) -> int:
         return {
             "gpt-3.5-turbo": 2,
             "gpt-4": 60,
+            "gpt-4-1106-preview": 30,
+            "gpt-4-1106-vision-preview": 30,
+            "gpt-3.5-turbo-1106": 2,
         }[self.model_name]
 
     def get_price_multiplied_by_1e6(self) -> int:
