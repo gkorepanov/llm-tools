@@ -153,10 +153,12 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     timeout = self.request_timeout(request_attempt.retry_state)
 
                     try:
-                        gen = await asyncio.wait_for(
-                            self.chat_model.async_client.create(messages=self.message_dicts, **params),
-                            timeout=timeout,
-                        )
+                        #gen = await asyncio.wait_for(
+                        #    self.chat_model.async_client.create(messages=self.message_dicts, **params),
+                        #    timeout=timeout,
+                        #)
+                        gen = self.chat_model.async_client.with_options(timeout=timeout, max_retries=1).create(messages=self.message_dicts, **params)
+
                     except openai.BadRequestError as e:
                         if e.response.json()["error"]["code"] == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
                             raise ModelContextSizeExceededError.from_openai_error(
