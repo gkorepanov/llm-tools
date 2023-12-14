@@ -109,7 +109,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         assert len(messages) > 0
 
         # TODO: remove
-        httpx_client = self.chat_model.async_client._client
+        httpx_client = self.chat_model.async_client._client._client
         open_connections = len(httpx_client._transport._pool._connections)
         logger.info(f"🥑 Number of open connections: {open_connections}")
         
