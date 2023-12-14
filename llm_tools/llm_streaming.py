@@ -157,7 +157,8 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                         #    self.chat_model.async_client.create(messages=self.message_dicts, **params),
                         #    timeout=timeout,
                         #)
-                        gen = self.chat_model.async_client.with_options(timeout=timeout, max_retries=1).create(messages=self.message_dicts, **params)
+                        # TODO: max_retries
+                        gen = await self.chat_model.async_client.create(messages=self.message_dicts, timeout=timeout, **params)
 
                     except openai.BadRequestError as e:
                         if e.response.json()["error"]["code"] == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
