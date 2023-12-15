@@ -108,14 +108,6 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         assert self.chat_model.streaming
         assert len(messages) > 0
 
-        # TODO: remove
-        try:
-            httpx_client = self.chat_model.async_client._client._client
-            open_connections = len(httpx_client._transport._pool.connections)
-            logger.info(f"🥑 Number of open connections: {open_connections}")
-        except:
-            pass
-        
         self.reset()
         _f = partial(count_tokens_from_input_messages,
             messages=messages,
@@ -162,13 +154,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     timeout = self.request_timeout(request_attempt.retry_state)
 
                     try:
-                        #gen = await asyncio.wait_for(
-                        #    self.chat_model.async_client.create(messages=self.message_dicts, **params),
-                        #    timeout=timeout,
-                        #)
-                        # TODO: max_retries
                         gen = await self.chat_model.async_client.create(messages=self.message_dicts, timeout=timeout, **params)
-
                     except openai.BadRequestError as e:
                         if e.response.json()["error"]["code"] == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
                             raise ModelContextSizeExceededError.from_openai_error(
