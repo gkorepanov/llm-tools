@@ -211,7 +211,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                                 token = ""
                             else:
                                 role = choice["delta"].get("role") or role
-                                token = choice["delta"]["content"] or ""
+                                token = choice["delta"].get("content", "")
 
                         _f = partial(count_tokens_from_output_text,
                             text=token,
