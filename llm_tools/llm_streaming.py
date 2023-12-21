@@ -185,16 +185,33 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                         except asyncio.TimeoutError as e:
                             raise StreamingNextTokenTimeoutError() from e
 
-                        choices = stream_resp.choices
+                        # this code is for original openai lib, which constructs pydantic objects for each response
+                        ## choices = stream_resp.choices
+                        ## if len(choices) == 0:
+                        ##     finish_reason = None
+                        ##     role = role
+                        ##     token = ""
+                        ## else:
+                        ##     choice = choices[0]
+                        ##     finish_reason = choice.finish_reason
+                        ##     role = choice.delta.role or role
+                        ##     token = choice.delta.content or ""
+
+                        # this code is for patched openai lib (github.com/karfly/openai-python), which returns raw jsons
+                        choices = stream_resp.get("choices", [])
                         if len(choices) == 0:
                             finish_reason = None
                             role = role
                             token = ""
                         else:
                             choice = choices[0]
-                            finish_reason = choice.finish_reason
-                            role = choice.delta.role or role
-                            token = choice.delta.content or ""
+                            finish_reason = choice.get("finish_reason")
+                            if "delta" not in choice:
+                                role = role
+                                token = ""
+                            else:
+                                role = choice["delta"].get("role") or role
+                                token = choice["delta"]["content"] or ""
 
                         _f = partial(count_tokens_from_output_text,
                             text=token,

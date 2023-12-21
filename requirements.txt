@@ -1,5 +1,5 @@
 iso639-lang
-openai==1.3.9
 tenacity
 langchain==0.0.350
 funcy
+git+https://github.com/karfly/openai-python.git@628d658
