@@ -14,7 +14,7 @@ from tenacity.wait import wait_base
 from dataclasses import dataclass
 import logging
 
-from langchain_community.chat_models import ChatOpenA, AzureChatOpenAI
+from langchain_community.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import BaseMessage
 import tiktoken
 import openai
