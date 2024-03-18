@@ -7,7 +7,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="llm-tools",
-    version="0.1.0",
+    version="0.1.1",
     description="Random tools for working with LLMs",
     long_description=long_description,  # Optional
     long_description_content_type="text/markdown",
@@ -17,10 +17,11 @@ setup(
     packages=find_packages(),
     python_requires=">=3.7",
     install_requires=[
-        "openai",
-        "iso639-lang",
-        "tenacity",
-        "funcy",
-        "langchain @ git+https://github.com/FlowerWrong/langchain.git@support-multi-openai-api-keys",
+        "openai~=1.13.3",
+        "iso639-lang~=2.2.2",
+        "tenacity~=8.2.3",
+        "funcy==2.0",
+        "langchain~=0.1.11",
+        "litellm~=1.30.7",
     ],
 )

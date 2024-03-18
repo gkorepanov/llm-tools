@@ -18,7 +18,7 @@ from llm_tools.errors import (
     should_fallback_to_other_model,
     MultipleException,
 )
-from llm_tools.llm_streaming import StreamingOpenAIChatModel
+from llm_tools.llm_streaming import StreamingChatModel
 from llm_tools.llm_streaming_base import StreamingLLMBase
 
 
@@ -26,14 +26,14 @@ from llm_tools.llm_streaming_base import StreamingLLMBase
 class StreamingModelWithFallback(StreamingLLMBase):
     def __init__(
         self,
-        models: List[StreamingOpenAIChatModel],
+        models: List[StreamingChatModel],
         should_fallback_to_other_model: Callable[[Exception], bool] = \
-            should_fallback_to_other_model, 
+            should_fallback_to_other_model,
     ):
         self.models = models
         self.should_fallback_to_other_model = should_fallback_to_other_model
         self.exceptions = []
-    
+
     async def stream_llm_reply(
         self,
         messages: List[OpenAIChatMessage],
@@ -66,10 +66,10 @@ class StreamingModelWithFallback(StreamingLLMBase):
         self,
         only_successful_trial: bool = False,
     ) -> TokenExpenses:
-        
+
         if not self.succeeded and only_successful_trial:
             raise ValueError("Cannot get tokens spent for unsuccessful trial")
-            
+
         if only_successful_trial:
             first_successful_model = next(model for model in self.models if model._succeeded)
             return first_successful_model.get_tokens_spent(only_successful_trial)

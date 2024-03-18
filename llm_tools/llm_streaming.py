@@ -1,55 +1,46 @@
 from typing import (
     AsyncIterator,
     Any,
-    Callable,
     Dict,
     List,
     Optional,
     Tuple,
-    Union,
 )
 from tenacity import wait_exponential
 import asyncio
 from tenacity.wait import wait_base
-from dataclasses import dataclass
 
-from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
-from langchain.schema import BaseMessage
-from langchain.chat_models.openai import _convert_dict_to_message
-import tiktoken
 import openai
-import openai.error
+from litellm import get_max_tokens, get_model_info, acompletion, token_counter, ContextWindowExceededError
 
 from concurrent.futures import Executor
 from functools import partial
 
-from llm_tools.chat_message import OpenAIChatMessage, prepare_messages
+from llm_tools.chat_message import OpenAIChatMessage, prepare_messages, convert_message_to_dict
 from llm_tools.tokens import (
     TokenExpense,
     TokenExpenses,
-    count_tokens_from_input_messages,
-    count_tokens_from_output_text,
 )
 
 from llm_tools.errors import (
     should_retry_initital_openai_request_error,
     should_retry_streaming_openai_request_error,
-    should_fallback_to_other_model,
     get_openai_retrying_iterator,
     ModelContextSizeExceededError,
     StreamingNextTokenTimeoutError,
-    OpenAIRequestTimeoutError,
-    CONTEXT_LENGTH_EXCEEDED_ERROR_CODE,
-    MultipleException,
 )
 from llm_tools.llm_streaming_base import StreamingLLMBase
 
 
 
-class StreamingOpenAIChatModel(StreamingLLMBase):
+class StreamingChatModel(StreamingLLMBase):
     def __init__(
         self,
-        chat_model: Union[ChatOpenAI, AzureChatOpenAI],
+        model: str,
+        temperature: float,
+        api_key: str,
+        max_tokens: Optional[int] = None,
+        lite_llm_params: Optional[Dict[str, Any]] = None,
         max_initial_request_retries: int = 5,
         max_streaming_retries: int = 2,
         wait_between_retries=wait_exponential(multiplier=1, min=1, max=60),
@@ -57,8 +48,13 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         request_timeout: wait_base = wait_exponential(multiplier=1, min=5, max=60),
         token_count_executor: Optional[Executor] = None,
     ):
-        self.chat_model = chat_model
-        self.encoding = tiktoken.encoding_for_model(self.chat_model.model_name)
+        self.model = model
+        self.temperature = temperature
+        self.api_key = api_key
+        if max_tokens is None:
+            max_tokens = get_max_tokens(model)
+        self.max_tokens_to_output = max_tokens
+        self.lite_llm_params = lite_llm_params if lite_llm_params is not None else {}
         self.max_request_retries = max_initial_request_retries
         self.max_streaming_retries = max_streaming_retries
         self.wait_between_retries = wait_between_retries
@@ -68,22 +64,16 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         self.reset()
 
     @property
+    def max_tokens(self) -> int:
+        return get_max_tokens(self.model)
+
+    @property
     def context_size(self) -> int:
-        model_name = self.chat_model.model_name
-        is_azure = isinstance(self.chat_model, AzureChatOpenAI)
-        if is_azure:
-            return {
-                "gpt-3.5-turbo": 8192,
-                "gpt-4": 8192,
-            }[model_name]
-        else:
-            return {
-                "gpt-3.5-turbo": 4097,
-                "gpt-3.5-turbo-16k": 16384,
-                "gpt-4": 8192,
-                "gpt-4-1106-preview": 128000,
-                "gpt-3.5-turbo-1106": 16385,
-            }[model_name]
+        i = get_model_info(self.model)
+        res = i.get("max_input_tokens", i.get("max_tokens"))
+        if res is None:
+            raise ValueError(f"Could not get context size for model {self.model}")
+        return res
 
     def reset(self):
         self.completions = []
@@ -99,25 +89,22 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
     def succeeded(self) -> bool:
         return self._succeeded
 
-    def prepare_messages(self, messages: List[OpenAIChatMessage]) -> List[BaseMessage]:
-        result = []
-        for message in messages:
-            if not isinstance(message, BaseMessage):
-                message = _convert_dict_to_message(message)
-            result.append(message)
-        return result
-
     async def stream_llm_reply(
         self,
         messages: List[OpenAIChatMessage],
         stop: Optional[List[str]] = None,
     ) -> AsyncIterator[Tuple[str, str]]:
-        assert self.chat_model.streaming
-        assert len(messages) > 0
         self.reset()
-        _f = partial(count_tokens_from_input_messages,
+
+        assert len(messages) > 0
+        messages = [
+            convert_message_to_dict(x)
+            for x in prepare_messages(messages)
+        ]
+
+        _f = partial(token_counter,
             messages=messages,
-            model_name=self.chat_model.model_name,
+            model=self.model,
         )
         if self.token_count_executor is None:
             self.input_messages_n_tokens = _f()
@@ -134,11 +121,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                 during_streaming=False,
             )
 
-        self.message_dicts, params = self.chat_model._create_message_dicts(
-            messages=prepare_messages(messages),
-            stop=stop,
-        )
-        params["stream"] = True
+        self.message_dicts = messages
 
         async for streaming_attempt in get_openai_retrying_iterator(
             retry_if_exception_fn=should_retry_streaming_openai_request_error,
@@ -159,21 +142,25 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                     self.request_attempts += 1
                     timeout = self.request_timeout(request_attempt.retry_state)
                     try:
-                        gen = await asyncio.wait_for(
-                            self.chat_model.client.acreate(messages=self.message_dicts, **params),
+                        gen = await acompletion(
+                            model=self.model,
+                            temperature=self.temperature,
+                            max_tokens=self.max_tokens_to_output,
+                            messages=self.message_dicts,
+                            **self.lite_llm_params,
                             timeout=timeout,
+                            stop=stop,
+                            api_key=self.api_key,
+                            stream=True,
                         )
-                    except openai.error.InvalidRequestError as e:
-                        if e.code == CONTEXT_LENGTH_EXCEEDED_ERROR_CODE:
-                            raise ModelContextSizeExceededError.from_openai_error(
-                                model_name=self.chat_model.model_name,
-                                during_streaming=False,
-                                error=e,
-                            ) from e
-                        else:
-                            raise
-                    except asyncio.TimeoutError as e:
-                        raise OpenAIRequestTimeoutError() from e
+                    except ContextWindowExceededError as e:
+                        raise ModelContextSizeExceededError.from_litellm_error(
+                            model_name=self.model,
+                            during_streaming=False,
+                            error=e,
+                        ) from e
+                    except asyncio.TimeoutError as e:  # map exceptions to OpenAIExceptions
+                        raise openai.APITimeoutError from e
                     except:
                         raise
                     else:
@@ -194,11 +181,12 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                             raise StreamingNextTokenTimeoutError() from e
                         finish_reason = stream_resp["choices"][0].get("finish_reason")
                         role = stream_resp["choices"][0]["delta"].get("role", role)
-                        token = stream_resp["choices"][0]["delta"].get("content", "")
+                        token = stream_resp["choices"][0]["delta"].get("content", "") or ""
 
-                        _f = partial(count_tokens_from_output_text,
+                        _f = partial(token_counter,
                             text=token,
-                            model_name=self.chat_model.model_name,
+                            model=self.model,
+                            count_response_tokens=True,
                         )
                         if self.token_count_executor is None:
                             _tokens = _f()
@@ -214,7 +202,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                         if finish_reason:
                             if finish_reason == "length":
                                 raise ModelContextSizeExceededError(
-                                    model_name=self.chat_model.model_name,
+                                    model_name=self.model,
                                     max_context_length=self.context_size,
                                     context_length=self.input_messages_n_tokens + self.output_tokens_spent_per_completion[-1],
                                     during_streaming=True,
@@ -244,7 +232,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
         expense = TokenExpense(
             n_input_tokens=n_input_tokens,
             n_output_tokens=n_output_tokens,
-            model_name=self.chat_model.model_name,
+            model_name=self.model,
         )
         expenses.add_expense(expense)
         return expenses

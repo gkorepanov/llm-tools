@@ -16,11 +16,11 @@ class StreamingLLMBase(object):
         stop: Optional[List[str]] = None,
     ) -> AsyncIterator[Tuple[str, str]]:
         raise NotImplementedError()
-    
+
     @property
     def succeeded(self) -> bool:
         raise NotImplementedError()
-    
+
     def get_tokens_spent(
         self,
         only_successful_trial: bool = False,
