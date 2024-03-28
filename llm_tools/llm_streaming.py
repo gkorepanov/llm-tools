@@ -38,7 +38,6 @@ class StreamingChatModel(StreamingLLMBase):
         self,
         model: str,
         temperature: float,
-        api_key: str,
         max_tokens: Optional[int] = None,
         lite_llm_params: Optional[Dict[str, Any]] = None,
         max_initial_request_retries: int = 5,
@@ -47,10 +46,11 @@ class StreamingChatModel(StreamingLLMBase):
         streaming_next_token_timeout: int = 10,
         request_timeout: wait_base = wait_exponential(multiplier=1, min=5, max=60),
         token_count_executor: Optional[Executor] = None,
+        **lightllm_kwargs,
     ):
         self.model = model
         self.temperature = temperature
-        self.api_key = api_key
+        self.lightllm_kwargs = lightllm_kwargs
         if max_tokens is None:
             max_tokens = get_max_tokens(model)
         self.max_tokens_to_output = max_tokens
@@ -150,8 +150,8 @@ class StreamingChatModel(StreamingLLMBase):
                             **self.lite_llm_params,
                             timeout=timeout,
                             stop=stop,
-                            api_key=self.api_key,
                             stream=True,
+                            **self.lightllm_kwargs,
                         )
                     except ContextWindowExceededError as e:
                         raise ModelContextSizeExceededError.from_litellm_error(
