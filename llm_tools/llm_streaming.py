@@ -78,7 +78,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                 "gpt-4": 8192,
                 "gpt-4-1106-preview": 128000,
                 "gpt-4-turbo-preview": 128000,
-                "gpt-4-o": 128000,
+                "gpt-4o": 128000,
             }[model_name]
         else:
             return {
@@ -87,7 +87,7 @@ class StreamingOpenAIChatModel(StreamingLLMBase):
                 "gpt-4": 8192,
                 "gpt-4-1106-preview": 128000,
                 "gpt-4-turbo-preview": 128000,
-                "gpt-4-o": 128000,
+                "gpt-4o": 128000,
             }[model_name]
 
     def reset(self):
