@@ -17,11 +17,11 @@ setup(
     packages=find_packages(),
     python_requires=">=3.7",
     install_requires=[
-        "openai~=1.13.3",
+        "openai~=1.55.3",
         "iso639-lang~=2.2.2",
         "tenacity~=8.2.3",
         "funcy==2.0",
         "langchain~=0.1.11",
-        "litellm~=1.30.7",
+        "litellm~=1.58.2",
     ],
 )
