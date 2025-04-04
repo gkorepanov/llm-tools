@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict
 import logging
 
-from litellm import get_model_info
+from litellm import cost_per_token
 
 
 logger = logging.getLogger(__name__)
@@ -27,20 +27,12 @@ class TokenExpense:
             n_output_tokens=self.n_output_tokens + other.n_output_tokens,
         )
 
-    def price_per_1e6_input_tokens(self) -> int:
-        return int(get_model_info(self.model_name)['input_cost_per_token'] * 1e6)
-
-    def price_per_1e6_output_tokens(self) -> int:
-        return int(get_model_info(self.model_name)['output_cost_per_token'] * 1e6)
-
     def get_price_multiplied_by_1e6(self) -> int:
-        return (
-            self.price_per_1e6_input_tokens() * self.n_input_tokens
-            + self.price_per_1e6_output_tokens() * self.n_output_tokens
-        )
+        return self.get_price() * 1e6
 
     def get_price(self) -> float:
-        return self.get_price_multiplied_by_1e6() / 1e6
+        results = cost_per_token(model=self.model_name, prompt_tokens=self.n_input_tokens, completion_tokens=self.n_output_tokens)
+        return sum(results)
 
 
 @dataclass
