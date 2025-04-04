@@ -7,17 +7,15 @@ from tenacity import (
 from tenacity.wait import wait_base
 from typing import Callable, Optional, List
 import logging
-import openai
 import aiohttp
 import aiohttp.client_exceptions
 import asyncio
 import re
-
+import litellm
 from litellm import ContextWindowExceededError
 
 
 logger = logging.getLogger(__name__)
-
 
 
 class ModelContextSizeExceededError(Exception):
@@ -94,14 +92,14 @@ CONTEXT_LENGTH_EXCEEDED_ERROR_CODE = "context_length_exceeded"
 
 def should_retry_initital_openai_request_error(error: Exception) -> bool:
     OPENAI_REQUEST_ERRORS = (
-        openai.APIError,
+        litellm.APIError,
     )
     return isinstance(error, OPENAI_REQUEST_ERRORS)
 
 
 def should_retry_streaming_openai_request_error(error: Exception) -> bool:
     OPENAI_STREAMING_ERRORS = (
-        openai.APIError,
+        litellm.APIError,
         aiohttp.client_exceptions.ClientPayloadError,
         StreamingNextTokenTimeoutError,
     )
