@@ -21,6 +21,6 @@ setup(
         "tenacity~=8.2.3",
         "funcy==2.0",
         "langchain~=0.3.22",
-        "litellm~=1.65.3",
+        "litellm>=1.80.7",
     ],
 )
