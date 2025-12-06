@@ -33,6 +33,32 @@ class StreamingModelWithFallback(StreamingLLMBase):
         self.models = models
         self.should_fallback_to_other_model = should_fallback_to_other_model
         self.exceptions = []
+        self._successful_model_index: Optional[int] = None
+
+    @property
+    def successful_model_index(self) -> Optional[int]:
+        """Index of the model that successfully completed the request."""
+        return self._successful_model_index
+
+    @property
+    def successful_model(self) -> Optional[StreamingChatModel]:
+        """The model that successfully completed the request."""
+        if self._successful_model_index is not None:
+            return self.models[self._successful_model_index]
+        return None
+
+    @property
+    def successful_model_name(self) -> Optional[str]:
+        """Name of the model that successfully completed the request."""
+        model = self.successful_model
+        return model.model if model else None
+
+    @property
+    def num_fallbacks(self) -> int:
+        """Number of fallbacks that occurred (0 if first model succeeded)."""
+        if self._successful_model_index is not None:
+            return self._successful_model_index
+        return len(self.exceptions)
 
     async def stream_llm_reply(
         self,
@@ -40,7 +66,8 @@ class StreamingModelWithFallback(StreamingLLMBase):
         stop: Optional[List[str]] = None,
     ) -> AsyncIterator[Tuple[str, str]]:
         self.exceptions = []
-        for model in self.models:
+        self._successful_model_index = None
+        for model_idx, model in enumerate(self.models):
             try:
                 async for completion, token in model.stream_llm_reply(messages, stop):
                     yield completion, token
@@ -51,6 +78,7 @@ class StreamingModelWithFallback(StreamingLLMBase):
                 else:
                     raise
             else:
+                self._successful_model_index = model_idx
                 break
         else:
             if len(self.exceptions) == 1:
